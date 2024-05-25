@@ -12,7 +12,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 
-from utils.views import get_utc_time,generate_jwt
+from utils.utils import get_utc_time,generate_jwt,format_time
 from .models import User
 from .serializers import UserSerializer
 
@@ -76,4 +76,42 @@ class UserAuthAPI(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            
+
+class GetAcessToken(APIView):
+    
+    def post(self,request):
+        refresh_token = request.data.get('refreshToken')
+        try:
+            payload = jwt.decode(refresh_token,decouple.config('SECRET_KEY'),algorithms="HS256",verify=True)
+        except Exception as e:
+            return Response({"message":str(e)})
         
+        user_id = payload.get('id')
+        token_type = payload.get('tokenType')
+        
+        if token_type != "refresh":
+            return Response({"message":"Invalid refresh token"})
+        
+        if user_id:
+            user = User.objects.filter(id=user_id).first()
+            if not user:
+                return Response({"message":"User Invalid"})
+
+            access_expiry_time = get_utc_time() + timedelta(seconds=10800)
+            access_expiry = str(format_time(access_expiry_time))
+            
+            access_token = jwt.encode(
+                {
+                    'id':user.id,
+                    'expiry':access_expiry,
+                    'tokenType':'access'
+                },
+                decouple.config('SECRET_KEY'),
+                algorithm="HS256"
+            )
+            
+            return Response({'accessToken': access_token, 'refreshToken': refresh_token,'expiry': access_expiry})
+        else:
+            return Response({"message":"Invalid refresh token"})
+
