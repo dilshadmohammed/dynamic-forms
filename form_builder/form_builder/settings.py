@@ -42,6 +42,11 @@ INSTALLED_APPS = [
     'user',
     'forms',
     'rest_framework',
+    'django_crontab',
+]
+
+CRONJOBS = [
+    ('0 */3 * * *', 'user.tasks.cleanup_expired_tokens'),  # Run every 3 hours
 ]
 
 MIDDLEWARE = [
@@ -52,7 +57,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'form_builder.middleware.ExceptionMiddleware',
+    # 'form_builder.middleware.ExceptionMiddleware',
 ]
 
 ROOT_URLCONF = 'form_builder.urls'

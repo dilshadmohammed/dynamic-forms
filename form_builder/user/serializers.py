@@ -2,13 +2,12 @@ from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from .models import User
 
-class UserSerializer(serializers.ModelSerializer):
+class UserCUDSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     
     class Meta:
         model=User
-        fields=['id','username','email','password']
-        read_only_fields = ['id']
+        fields=['username','email','password']
     
     def create(self,validated_data):
         password = validated_data.pop("password")
@@ -16,3 +15,4 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data["password"] = hashed_password
         
         return super().create(validated_data)
+    

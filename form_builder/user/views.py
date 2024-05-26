@@ -2,6 +2,7 @@ import decouple
 import jwt
 import pytz
 import uuid
+from datetime import datetime
 from datetime import timedelta
 from decouple import config
 from django.contrib.auth.hashers import check_password
@@ -10,11 +11,14 @@ from django.shortcuts import reverse
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.authentication import get_authorization_header
 
 
-from utils.utils import get_utc_time,generate_jwt,format_time
-from .models import User
-from .serializers import UserSerializer
+from utils.utils import get_utc_time,generate_jwt,format_time,mark_token_expired,get_refresh_expiry
+from utils.permission import JWTUtils
+from utils.types import TokenType
+from .models import User,Token
+from .serializers import UserCUDSerializer
 
 
 class UserRegisterAPI(APIView):
@@ -22,7 +26,7 @@ class UserRegisterAPI(APIView):
         data = request.data
         data = {key: value for key, value in data.items() if value}
         
-        created_user = UserSerializer(data=data)
+        created_user = UserCUDSerializer(data=data)
         
         if not created_user.is_valid():
             return Response({
@@ -30,18 +34,8 @@ class UserRegisterAPI(APIView):
             },
             status=status.HTTP_400_BAD_REQUEST
             )
-        user = created_user.save()
         
-        access_token,refresh_token = generate_jwt(user)
-                
-        
-        res_data = {
-            "user": UserSerializer(user).data,
-            "accessToken":access_token,
-            "refreshToken":refresh_token
-        }
-        
-        return Response(res_data,status=status.HTTP_200_OK)
+        return Response({"message":"User created successfully"},status=status.HTTP_200_OK)
 
         
 
@@ -77,11 +71,49 @@ class UserAuthAPI(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            
+
+class UserLogoutAPI(APIView):
+    def post(self,request):
+        
+        user_id = JWTUtils.fetch_user_id(request)
+        if not user_id:
+            return Response({"message": "Invalid user"}, status=400)
+        user = User.objects.filter(id=user_id).first()
+        
+        if not user:
+            return Response({"message": "Invalid user"}, status=400)
+
+        refresh_token = request.data.get('refreshToken')
+        access_token = get_authorization_header(request).decode("utf-8")[len("Bearer"):].strip()
+
+        if not access_token:
+            return Response({"message": "Access token is required"}, status=400)
+
+        # access_token = access_token.encode('utf-8')  # Ensure the token is bytes
+        access_expiry = JWTUtils.fetch_expiry(request)
+
+        if refresh_token:
+            # refresh_token = refresh_token.encode('utf-8')  # Ensure the token is bytes
+            refresh_expiry = get_refresh_expiry(refresh_token)
+            mark_token_expired(refresh_token, user, TokenType.REFRESH, refresh_expiry)
+
+        mark_token_expired(access_token, user, TokenType.ACCESS, access_expiry)
+
+        return Response({"message": "User logged out successfully"}, status=200)
+
+        
+
 
 class GetAcessToken(APIView):
     
     def post(self,request):
         refresh_token = request.data.get('refreshToken')
+        
+        existing_token = Token.objects.filter(token=refresh_token).first()
+        if existing_token:
+            return Response({"message": "Invalid or expired refresh token"}, status=400)
+    
         try:
             payload = jwt.decode(refresh_token,decouple.config('SECRET_KEY'),algorithms="HS256",verify=True)
         except Exception as e:
@@ -89,9 +121,10 @@ class GetAcessToken(APIView):
         
         user_id = payload.get('id')
         token_type = payload.get('tokenType')
+        expiry = datetime.strptime(payload.get("expiry"), "%Y-%m-%d %H:%M:%S%z")
         
-        if token_type != "refresh":
-            return Response({"message":"Invalid refresh token"})
+        if token_type != "refresh" or expiry < get_utc_time():
+            return Response({"message":"Invalid or expired refresh token"})
         
         if user_id:
             user = User.objects.filter(id=user_id).first()
