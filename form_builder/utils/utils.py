@@ -62,3 +62,12 @@ def get_refresh_expiry(token):
     
 def mark_token_expired(token,user,token_type,expiry):
     Token.objects.create(user=user,token=token,token_type=token_type,expiry=expiry)
+    
+def sort_nested_list(data):
+    for key, value in data.items():
+        if isinstance(value, list):
+            # Sort the list if it contains items
+            if value:
+                # If items are dictionaries, sort them by their IDs
+                if isinstance(value[0], dict) and 'id' in value[0]:
+                    data[key] = sorted(value, key=lambda x: x['id'])

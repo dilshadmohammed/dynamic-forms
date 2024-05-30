@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from user.models import User
-from .models import Form,FormField,FormResponse,Choice,ChoiceAnswer,LongAnswer,ShortAnswer,CheckBox,Dropdown,DateTable,FileTable
+from .models import Form,FormField,FormResponse,Choice,ChoiceAnswer,LongAnswer,ShortAnswer,CheckBox,DateTable,FileTable
 from utils.types import FormType
+from utils.utils import sort_nested_list
 
 class UserRetrievalSerializer(serializers.ModelSerializer):
 
@@ -24,10 +25,8 @@ class FormCUDSerializer(serializers.ModelSerializer):
         fields = ['title', 'description']
 
     def create(self, validated_data):
-        # Get the user from the request context
-        user = self.context['user']
         # Create the form with the user
-        return Form.objects.create(user=User.objects.get(id=user), **validated_data)
+        return Form.objects.create(**validated_data)
 
     def update(self, instance, validated_data):
         # Update the form instance
@@ -36,17 +35,50 @@ class FormCUDSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+class ChoiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Choice
+        fields = ['id','text']
+
+
 
 class FormFieldSerializer(serializers.ModelSerializer):
-    
+    choices = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        write_only=True
+    )
+
     class Meta:
         model = FormField
         fields = "__all__"
         read_only_fields = ['id','form']
     
-    def create(self,validated_data):
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.type in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
+            representation['choices'] = ChoiceSerializer(instance.choices.all(), many=True).data
+        return representation
+    
+
+    def create(self, validated_data):
         form = self.context['form']
-        return FormField.objects.create(form=form,**validated_data)
+        choices_data = validated_data.pop('choices', None)
+        form_field = FormField.objects.create(form=form, **validated_data)
+        if choices_data and validated_data['type'] in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
+            for choice_data in choices_data:
+                Choice.objects.create(formfield=form_field, text=choice_data)
+        return form_field
+    
+    def update(self, instance, validated_data):
+        choices_data = validated_data.pop('choices', None)
+        instance = super().update(instance, validated_data)
+        if choices_data and instance.type in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
+            # Optionally handle choices update logic
+            instance.choices.all().delete()  # Clear existing choices
+            for choice_data in choices_data:
+                Choice.objects.create(formfield=instance, text=choice_data)
+        return instance
         
         
     
@@ -56,3 +88,18 @@ class FormDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model=Form
         exclude=['user']
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+
+        # Sort form fields by ID
+        representation['form_fields'] = sorted(
+            representation['form_fields'],
+            key=lambda x: x['id']
+        )
+
+        # Recursively sort lists within form fields
+        for field in representation['form_fields']:
+            sort_nested_list(field)
+
+        return representation

@@ -1,7 +1,12 @@
 from rest_framework.routers import DefaultRouter
-from .views import FormViewSet
+from django.urls import path
+from .views import FormViewSet,FormResponseAPI
 
 router = DefaultRouter()
-router.register(r'forms', FormViewSet, basename='form')
+router.register(r'form-editor', FormViewSet, basename='form')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('view/<str:pk>',FormResponseAPI.as_view(),name='form-view')
+    ]
+
+urlpatterns += router.urls

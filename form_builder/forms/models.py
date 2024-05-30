@@ -25,11 +25,6 @@ class Choice(models.Model):
     formfield = models.ForeignKey(FormField, related_name='choices', on_delete=models.CASCADE)
     text = models.CharField(max_length=255)
 
-class DropdownMenu(models.Model):
-    id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
-    formfield = models.ForeignKey(FormField, related_name='dropdown_menus', on_delete=models.CASCADE)
-    text = models.CharField(max_length=255)
-
 class ChoiceAnswer(models.Model):
     id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
     response = models.ForeignKey(FormResponse, related_name='choice_answers', on_delete=models.CASCADE)
@@ -53,12 +48,6 @@ class CheckBox(models.Model):
     response = models.ForeignKey(FormResponse, related_name='checkboxes', on_delete=models.CASCADE)
     formfield = models.ForeignKey(FormField, related_name='checkboxes', on_delete=models.CASCADE)
     value = models.BooleanField(default=False)
-
-class Dropdown(models.Model):
-    id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
-    response = models.ForeignKey(FormResponse, related_name='dropdowns', on_delete=models.CASCADE)
-    formfield = models.ForeignKey(FormField, related_name='dropdowns', on_delete=models.CASCADE)
-    value = models.CharField(max_length=255)
 
 class DateTable(models.Model):
     id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
