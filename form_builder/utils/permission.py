@@ -83,7 +83,7 @@ class JWTUtils:
             raise UnauthorizedAccessException(
                 {
                     "hasError": True,
-                    "message": {"general": [str(e)]},
+                    "message": [str(e)],
                     "statusCode": 1000,
                 }
             ) from e
@@ -91,7 +91,7 @@ class JWTUtils:
             raise UnauthorizedAccessException(
                 {
                     "hasError": True,
-                    "message": {"general": [str(e)]},
+                    "message": [str(e)],
                     "statusCode": 1000,
                 }
             ) from e
@@ -101,7 +101,7 @@ class JWTUtils:
             raise UnauthorizedAccessException(
                 {
                     "hasError": True,
-                    "message": {"general": [str(e)]},
+                    "message": [str(e)],
                     "statusCode": 1000,
                 }
             ) from e

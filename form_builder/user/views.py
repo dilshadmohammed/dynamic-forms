@@ -16,6 +16,7 @@ from rest_framework.authentication import get_authorization_header
 
 from utils.utils import get_utc_time,generate_jwt,format_time,mark_token_expired,get_refresh_expiry
 from utils.permission import JWTUtils
+from utils.response import CustomResponse
 from utils.types import TokenType
 from .models import User,Token
 from .serializers import UserCUDSerializer
@@ -29,13 +30,9 @@ class UserRegisterAPI(APIView):
         created_user = UserCUDSerializer(data=data)
         
         if not created_user.is_valid():
-            return Response({
-                "general_message":created_user.errors
-            },
-            status=status.HTTP_400_BAD_REQUEST
-            )
+            return CustomResponse(message=created_user.errors).get_failure_response()
         created_user.save()
-        return Response({"message":"User created successfully"},status=status.HTTP_200_OK)
+        return CustomResponse(message="User created successfully").get_success_response()
 
         
 
@@ -49,27 +46,14 @@ class UserAuthAPI(APIView):
             if user.password and check_password(password,user.password):
                 access_token,refresh_token = generate_jwt(user)
                 
-                return Response(
-                    {
+                return CustomResponse(response={
                         "accessToken":access_token,
                         "refreshToken":refresh_token
-                    },
-                    status=status.HTTP_200_OK
-                )
+                    }).get_success_response()
             else:
-                return Response(
-                    {
-                        "general_message":"Invalid Password"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return CustomResponse(message="Invalid password").get_unauthorized_response()
         else:
-            return Response(
-                    {
-                        "general_message":"Invalid username or email"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            return CustomResponse(message="Invalid username or email").get_unauthorized_response()
             
             
 
@@ -78,30 +62,27 @@ class UserLogoutAPI(APIView):
         
         user_id = JWTUtils.fetch_user_id(request)
         if not user_id:
-            return Response({"message": "Invalid user"}, status=400)
+            return CustomResponse(message="Invalid user").get_failure_response()
         user = User.objects.filter(id=user_id).first()
         
         if not user:
-            return Response({"message": "Invalid user"}, status=400)
+            return CustomResponse(message="Invalid user").get_failure_response()
 
         refresh_token = request.data.get('refreshToken')
         access_token = get_authorization_header(request).decode("utf-8")[len("Bearer"):].strip()
 
         if not access_token:
-            return Response({"message": "Access token is required"}, status=400)
-
-        # access_token = access_token.encode('utf-8')  # Ensure the token is bytes
+            return CustomResponse(message="Access token is required").get_failure_response() 
+        
         access_expiry = JWTUtils.fetch_expiry(request)
 
         if refresh_token:
-            # refresh_token = refresh_token.encode('utf-8')  # Ensure the token is bytes
             refresh_expiry = get_refresh_expiry(refresh_token)
             mark_token_expired(refresh_token, user, TokenType.REFRESH, refresh_expiry)
 
         mark_token_expired(access_token, user, TokenType.ACCESS, access_expiry)
 
-        return Response({"message": "User logged out successfully"}, status=200)
-
+        return CustomResponse(message="User logged out successfully").get_success_response()
         
 
 
@@ -112,24 +93,24 @@ class GetAcessToken(APIView):
         
         existing_token = Token.objects.filter(token=refresh_token).first()
         if existing_token:
-            return Response({"message": "Invalid or expired refresh token"}, status=400)
+            return CustomResponse(message="Invalid or expired refresh token").get_unauthorized_response()
     
         try:
             payload = jwt.decode(refresh_token,decouple.config('SECRET_KEY'),algorithms="HS256",verify=True)
         except Exception as e:
-            return Response({"message":str(e)})
+            return CustomResponse(message=str(e)).get_failure_response()
         
         user_id = payload.get('id')
         token_type = payload.get('tokenType')
         expiry = datetime.strptime(payload.get("expiry"), "%Y-%m-%d %H:%M:%S%z")
         
         if token_type != "refresh" or expiry < get_utc_time():
-            return Response({"message":"Invalid or expired refresh token"})
+            return CustomResponse(message="Invalid or expired refresh token").get_unauthorized_response()
         
         if user_id:
             user = User.objects.filter(id=user_id).first()
             if not user:
-                return Response({"message":"User Invalid"})
+                return CustomResponse(message="User Invalid").get_unauthorized_response()
 
             access_expiry_time = get_utc_time() + timedelta(seconds=10800)
             access_expiry = str(format_time(access_expiry_time))
@@ -144,7 +125,7 @@ class GetAcessToken(APIView):
                 algorithm="HS256"
             )
             
-            return Response({'accessToken': access_token, 'refreshToken': refresh_token,'expiry': access_expiry})
+            return CustomResponse(response={'accessToken': access_token, 'refreshToken': refresh_token,'expiry': access_expiry}).get_success_response()
         else:
-            return Response({"message":"Invalid refresh token"})
+            return CustomResponse(message="Invalid refresh token").get_unauthorized_response()
 
