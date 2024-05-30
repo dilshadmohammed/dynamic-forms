@@ -1,6 +1,7 @@
-from django.urls import path
-from .views import TestAPI
+from rest_framework.routers import DefaultRouter
+from .views import FormViewSet
 
-urlpatterns = [
-    path('testview/',TestAPI.as_view(),name='test-view')
-]
+router = DefaultRouter()
+router.register(r'forms', FormViewSet, basename='form')
+
+urlpatterns = router.urls

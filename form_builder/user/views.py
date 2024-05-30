@@ -34,7 +34,7 @@ class UserRegisterAPI(APIView):
             },
             status=status.HTTP_400_BAD_REQUEST
             )
-        
+        created_user.save()
         return Response({"message":"User created successfully"},status=status.HTTP_200_OK)
 
         

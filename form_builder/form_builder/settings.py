@@ -21,14 +21,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-dk^^zb+r)$e4tuvbm=h6min4u=&+h18y(_^t^v&@l@9^qvgxwg'
+SECRET_KEY = decouple.config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
 
-SECRET_KEY = decouple.config('SECRET_KEY')
 
 # Application definition
 
@@ -86,9 +85,13 @@ WSGI_APPLICATION = 'form_builder.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": decouple.config("DATABASE_ENGINE"),
+        "NAME": decouple.config("DATABASE_NAME"),
+        "USER": decouple.config("DATABASE_USER"),
+        "PASSWORD": decouple.config("DATABASE_PASSWORD"),
+        "HOST": decouple.config("DATABASE_HOST"),
+        "PORT": decouple.config("DATABASE_PORT"),
     }
 }
 
