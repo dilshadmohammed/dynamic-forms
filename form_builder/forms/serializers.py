@@ -41,13 +41,15 @@ class ChoiceSerializer(serializers.ModelSerializer):
         fields = ['id','text']
 
 
-
 class FormFieldSerializer(serializers.ModelSerializer):
     choices = serializers.ListField(
         child=serializers.CharField(),
         required=False,
         write_only=True
     )
+    
+    is_required = serializers.BooleanField(required=False, allow_null=True)
+
 
     class Meta:
         model = FormField
@@ -64,6 +66,8 @@ class FormFieldSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         form = self.context['form']
         choices_data = validated_data.pop('choices', None)
+        if 'is_required' not in validated_data:
+            validated_data['is_required'] = False
         form_field = FormField.objects.create(form=form, **validated_data)
         if choices_data and validated_data['type'] in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
             for choice_data in choices_data:
@@ -72,12 +76,16 @@ class FormFieldSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         choices_data = validated_data.pop('choices', None)
+        if not validated_data['is_required']:
+            validated_data['is_required'] = instance.is_required
         instance = super().update(instance, validated_data)
         if choices_data and instance.type in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
             # Optionally handle choices update logic
             instance.choices.all().delete()  # Clear existing choices
             for choice_data in choices_data:
                 Choice.objects.create(formfield=instance, text=choice_data)
+        elif instance.type not in  [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN] and instance.choices.exists():
+            instance.choices.all().delete()
         return instance
         
         
@@ -138,14 +146,18 @@ class FormSubmissionSerializer(serializers.Serializer):
                     raise serializers.ValidationError(f"Required field '{required_field_ids[field_id]}' is missing or has an empty value.")
         for response in form_fields_response:
             field_id = response.get('id')
+            
             if field_id not in form_field_ids:
                 raise serializers.ValidationError(f"Form field with ID '{field_id}' does not exist.")
+            
             field_type = form_field_ids[field_id]
+            
             if field_type in [FormType.RADIO_BUTTON, FormType.DROPDOWN]:
                 if not isinstance(response.get('value'), str):
                     raise serializers.ValidationError(f"Invalid value type for choice field with ID '{field_id}'.")
                 if not Choice.objects.filter(id=response.get('value'), formfield_id=field_id).exists():
                     raise serializers.ValidationError(f"Choice with ID '{choice_id}' does not exist for field with ID '{field_id}'.")
+            
             elif field_type == FormType.MULTIPLE_CHOICE:
                 if not isinstance(response.get('value'), (list, str)):
                     raise serializers.ValidationError(f"Invalid value type for multiple choice field with ID '{field_id}'. Expected a list or string.")
@@ -157,6 +169,7 @@ class FormSubmissionSerializer(serializers.Serializer):
                     choice_id = response.get('value')
                     if not Choice.objects.filter(id=choice_id, formfield_id=field_id).exists():
                         raise serializers.ValidationError(f"Choice with ID '{choice_id}' does not exist for field with ID '{field_id}'.")
+            
             elif field_type == FormType.FILE_UPLOAD:
                 if not isinstance(response.get('value'), str):  # Expecting a file path or URL as string
                     raise serializers.ValidationError(f"Invalid value type for file field with ID '{field_id}'.")
@@ -173,6 +186,7 @@ class FormSubmissionSerializer(serializers.Serializer):
             elif field_type == FormType.CHECKBOX:
                 if not isinstance(response.get('value'), bool):  # Expecting a boolean value
                     raise serializers.ValidationError(f"Invalid value type for checkbox field with ID '{field_id}'. Expected a boolean.")
+            
             elif field_type in [FormType.SHORT_ANSWER,FormType.LONG_ANSWER]:
                 if not isinstance(response.get('value'), str):
                     raise serializers.ValidationError(f"Invalid value type for short answer field with ID '{field_id}'.")
@@ -254,33 +268,39 @@ class FormFieldValueSerializer(serializers.ModelSerializer):
                 return short_answer.value
             except ShortAnswer.DoesNotExist:
                 return None
+        
         elif field_type == FormType.LONG_ANSWER:
             try:
                 long_answer = LongAnswer.objects.get(formfield=instance, response=form_response)
                 return long_answer.value
             except LongAnswer.DoesNotExist:
                 return None
+        
         elif field_type in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
             choices = ChoiceAnswer.objects.filter(formfield=instance, response=form_response)
             return [choice.text for choice in choices]
+        
         elif field_type == FormType.CHECKBOX:
             try:
                 checkbox = CheckBox.objects.get(formfield=instance, response=form_response)
                 return checkbox.value
             except CheckBox.DoesNotExist:
                 return None
+       
         elif field_type == FormType.DATE:
             try:
                 date = DateTable.objects.get(formfield=instance, response=form_response)
                 return date.value
             except DateTable.DoesNotExist:
                 return None
+       
         elif field_type == FormType.FILE_UPLOAD:
             try:
                 file = FileTable.objects.get(formfield=instance, response=form_response)
                 return file.value
             except FileTable.DoesNotExist:
                 return None
+        
         else:
             return None
         

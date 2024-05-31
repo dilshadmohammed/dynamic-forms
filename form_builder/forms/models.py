@@ -14,7 +14,7 @@ class FormField(models.Model):
     form = models.ForeignKey(Form, related_name='form_fields', on_delete=models.CASCADE)
     type = models.CharField(max_length=20, choices=FormType.CHOICES, default=FormType.SHORT_ANSWER)
     label = models.TextField(null=True, blank=True)
-    is_required = models.BooleanField(default=False)
+    is_required = models.BooleanField()
 
 class FormResponse(models.Model):
     id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
