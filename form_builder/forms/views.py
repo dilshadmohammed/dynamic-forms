@@ -13,9 +13,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.http import Http404
 from utils.permission import JWTAuth
-from .serializers import UserRetrievalSerializer,FormListSerializer,FormCUDSerializer,FormDetailSerializer,FormFieldSerializer
+from .serializers import UserRetrievalSerializer,FormListSerializer,FormCUDSerializer,FormDetailSerializer,FormFieldSerializer,FormSubmissionSerializer,FormResponseSerializer
 from user.models import User
-from .models import Form,FormField
+from .models import Form,FormField,FormResponse
 from utils.permission import JWTUtils
 from utils.response import CustomResponse
 
@@ -157,5 +157,28 @@ class FormResponseAPI(APIView):
     def post(self,request,pk = None):
         if not pk:
             return CustomResponse(message="missing formID").get_failure_response()
+        serializer = FormSubmissionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        else:
+            return Response(serializer.errors)
+        
+        
+        
+class FormResponseDetail(APIView):
+        
+    def get(self,request,pk=None):
+        if not pk:
+            return CustomResponse(message="missing responseID").get_failure_response()
+        
+        try:
+            form_response = FormResponse.objects.get(pk=pk)
+        except FormResponse.DoesNotExist:
+            return CustomResponse(message="Response not found").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
+
+        serializer = FormResponseSerializer(form_response)
+        
+        return CustomResponse(response=serializer.data).get_success_response()
         
         
