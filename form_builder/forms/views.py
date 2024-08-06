@@ -7,7 +7,7 @@ from decouple import config
 from django.contrib.auth.hashers import check_password
 from django.db.models import Q
 from django.shortcuts import reverse
-from rest_framework import viewsets, status
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -23,109 +23,124 @@ from utils.response import CustomResponse
 
 
 
-class FormViewSet(viewsets.ModelViewSet):
+class FormListView(APIView):
     authentication_classes = [JWTAuth]
-    http_method_names = ['get', 'post', 'put', 'delete'] 
     
-    def get_serializer_class(self):
-        if self.action in ['list', 'retrieve']:
-            return FormListSerializer if self.action == 'list' else FormDetailSerializer
-        return FormCUDSerializer
-    
-    def get_queryset(self):
-        user_id = JWTUtils.fetch_user_id(self.request)
-        return Form.objects.filter(user_id=user_id)
-    
-    def perform_create(self, serializer):
-        user_id = JWTUtils.fetch_user_id(self.request)
-        serializer.save(user_id=user_id)
-    
-    def perform_update(self, serializer):
-        user_id = JWTUtils.fetch_user_id(self.request)
-        serializer.save(user_id=user_id)
-
-
-    def list(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         try:
-            queryset = self.filter_queryset(self.get_queryset())
-            serializer = self.get_serializer(queryset, many=True)
-            
+            user_id = JWTUtils.fetch_user_id(request)
+            queryset = Form.objects.filter(user_id=user_id)
+            serializer = FormListSerializer(queryset, many=True)
             return CustomResponse(response=serializer.data).get_success_response()
         except Exception as e:
             return CustomResponse(message=str(e)).get_failure_response()
+        
 
-    def retrieve(self, request, *args, **kwargs):
+class FormRetrieveView(APIView):
+    authentication_classes = [JWTAuth]
+    
+    def get(self, request, pk, *args, **kwargs):
         try:
-            instance = self.get_object()
-            serializer = self.get_serializer(instance)
+            user_id = JWTUtils.fetch_user_id(request)
+            form = Form.objects.get(pk=pk, user_id=user_id)
+            serializer = FormDetailSerializer(form)
             return CustomResponse(response=serializer.data).get_success_response()
+        except Form.DoesNotExist:
+            return CustomResponse(message="Form not found").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return CustomResponse(message=str(e)).get_failure_response()
+        
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+class FormCreateView(APIView):
+    authentication_classes = [JWTAuth]
+    
+    def post(self, request, *args, **kwargs):
+        serializer = FormCUDSerializer(data=request.data)
         if serializer.is_valid():
-            self.perform_create(serializer)
+            user_id = JWTUtils.fetch_user_id(request)
+            serializer.save(user_id=user_id)
             return CustomResponse(response=serializer.data).get_success_response()
         else:
             return CustomResponse(message=serializer.errors).get_failure_response()
+        
+        
+class FormUpdateView(APIView):
+    authentication_classes = [JWTAuth]
     
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        if serializer.is_valid():
-            self.perform_update(serializer)
-            return CustomResponse(response=serializer.data).get_success_response()
-        else:
-            return CustomResponse(message=serializer.errors).get_failure_response()
-    
-    def destroy(self, request, *args, **kwargs):
+    def put(self, request, pk, *args, **kwargs):
         try:
-            instance = self.get_object()
-            self.perform_destroy(instance)
+            user_id = JWTUtils.fetch_user_id(request)
+            form = Form.objects.get(pk=pk, user_id=user_id)
+            serializer = FormCUDSerializer(form, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save(user_id=user_id)
+                return CustomResponse(response=serializer.data).get_success_response()
+            else:
+                return CustomResponse(message=serializer.errors).get_failure_response()
+        except Form.DoesNotExist:
+            return CustomResponse(message="Form not found").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return CustomResponse(message=str(e)).get_failure_response()
+        
+
+class FormDeleteView(APIView):
+    authentication_classes = [JWTAuth]
+    
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            user_id = JWTUtils.fetch_user_id(request)
+            form = Form.objects.get(pk=pk, user_id=user_id)
+            form.delete()
             return CustomResponse(message="Form deleted successfully").get_success_response()
-        except Http404:
+        except Form.DoesNotExist:
             return CustomResponse(message="Form not found").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return CustomResponse(message=str(e)).get_failure_response(status_code=status.HTTP_400_BAD_REQUEST)
-
+        
+class AddFieldView(APIView):
+    authentication_classes = [JWTAuth]
     
-    @action(detail=True, methods=['post'])
-    def add_field(self, request, pk=None):
+    def post(self, request, pk, *args, **kwargs):
         user_id = JWTUtils.fetch_user_id(request)
         try:
             form = Form.objects.get(pk=pk, user_id=user_id)
         except Form.DoesNotExist:
-            return CustomResponse(message="form not found").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
+            return CustomResponse(message="Form not found").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
         
         serializer = FormFieldSerializer(data=request.data, context={'form': form})
         if serializer.is_valid():
             serializer.save()
-            return CustomResponse(message="Formfield added").get_success_response()
+            return CustomResponse(message="Form field added").get_success_response()
         else:
             return CustomResponse(message=serializer.errors).get_failure_response()
+        
+        
+class EditFieldView(APIView):
+    authentication_classes = [JWTAuth]
     
-    @action(detail=True, methods=['put'], url_path='edit_field/(?P<field_pk>[^/.]+)')
-    def edit_field(self, request, pk=None, field_pk=None):
+    def put(self, request, pk, field_pk, *args, **kwargs):
         user_id = JWTUtils.fetch_user_id(request)
         
         try:
             formfield = FormField.objects.select_related('form').get(pk=field_pk)
         except FormField.DoesNotExist:
-            return CustomResponse(message="formfield does not exits").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
+            return CustomResponse(message="Form field does not exist").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
         
         if formfield.form.user_id != user_id or formfield.form.id != pk:
-            return CustomResponse(message="formfield does not exits").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
+            return CustomResponse(message="Form field does not exist").get_failure_response(status_code=status.HTTP_404_NOT_FOUND)
         
         serializer = FormFieldSerializer(formfield, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return CustomResponse(message="formfield edited").get_success_response()
+            return CustomResponse(message="Form field edited").get_success_response()
         else:
             return CustomResponse(message=serializer.errors).get_failure_response()
+        
+        
+class DeleteFieldView(APIView):
+    authentication_classes = [JWTAuth]
     
-    @action(detail=True, methods=['delete'], url_path='delete_field/(?P<field_pk>[^/.]+)')
-    def delete_field(self, request, pk=None, field_pk=None):
+    def delete(self, request, pk, field_pk, *args, **kwargs):
         user_id = JWTUtils.fetch_user_id(request)
         
         try:
@@ -137,7 +152,7 @@ class FormViewSet(viewsets.ModelViewSet):
             return CustomResponse(message="Form field does not exist").get_failure_response()
         
         formfield.delete()
-        return CustomResponse(message="formfield deleted successfully").get_success_response()
+        return CustomResponse(message="Form field deleted successfully").get_success_response()
     
 
 

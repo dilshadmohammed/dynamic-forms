@@ -11,6 +11,7 @@ class FormType:
     DROPDOWN = "dropdown"
     DATE = "date"
     FILE_UPLOAD = "file_upload"
+    UPI_PAYMENT = "upi_payment"
     
     CHOICES = [
         (SHORT_ANSWER, SHORT_ANSWER),
@@ -21,5 +22,6 @@ class FormType:
         (DROPDOWN, DROPDOWN),
         (DATE, DATE),
         (FILE_UPLOAD, FILE_UPLOAD),
+        (UPI_PAYMENT,UPI_PAYMENT)
     ]
 

@@ -84,7 +84,7 @@ class JWTUtils:
                 {
                     "hasError": True,
                     "message": [str(e)],
-                    "statusCode": 1000,
+                    "statusCode": 401,
                 }
             ) from e
         except jwt.exceptions.DecodeError as e:
@@ -92,7 +92,7 @@ class JWTUtils:
                 {
                     "hasError": True,
                     "message": [str(e)],
-                    "statusCode": 1000,
+                    "statusCode": 401,
                 }
             ) from e
         except AuthenticationFailed as e:
@@ -102,7 +102,7 @@ class JWTUtils:
                 {
                     "hasError": True,
                     "message": [str(e)],
-                    "statusCode": 1000,
+                    "statusCode": 401,
                 }
             ) from e
             

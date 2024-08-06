@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from user.models import User
-from .models import Form,FormField,FormResponse,Choice,ChoiceAnswer,LongAnswer,ShortAnswer,CheckBox,DateTable,FileTable
+from .models import Form,FormField,FormResponse,Choice,ChoiceAnswer,LongAnswer,ShortAnswer,CheckBox,DateTable,FileTable,PaymentRequest
 from utils.types import FormType
 from utils.utils import sort_nested_list
 
@@ -47,6 +47,8 @@ class FormFieldSerializer(serializers.ModelSerializer):
         required=False,
         write_only=True
     )
+    upi_id = serializers.CharField(required=False,write_only=True)
+    amount = serializers.CharField(required=False,write_only=True)
     
     is_required = serializers.BooleanField(required=False, allow_null=True)
 
@@ -60,18 +62,31 @@ class FormFieldSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         if instance.type in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
             representation['choices'] = ChoiceSerializer(instance.choices.all(), many=True).data
+        if instance.type == FormType.UPI_PAYMENT:
+            payment_details = instance.payment_details.first()
+            if payment_details:
+                representation['upi_id'] = payment_details.upi_id
+                representation['amount'] = payment_details.amount
+            else:
+                representation['upi_id'] = None
+                representation['amount'] = 0
         return representation
     
 
     def create(self, validated_data):
         form = self.context['form']
         choices_data = validated_data.pop('choices', None)
+        upi_id = validated_data.pop('upi_id',None)
+        amount = validated_data.pop('amount',None)
         if 'is_required' not in validated_data:
             validated_data['is_required'] = False
         form_field = FormField.objects.create(form=form, **validated_data)
         if choices_data and validated_data['type'] in [FormType.RADIO_BUTTON,FormType.MULTIPLE_CHOICE,FormType.DROPDOWN]:
             for choice_data in choices_data:
                 Choice.objects.create(formfield=form_field, text=choice_data)
+        if upi_id and amount and validated_data['type'] == FormType.UPI_PAYMENT:
+            PaymentRequest.objects.create(formfield=form_field,upi_id=upi_id,amount=amount)
+            
         return form_field
     
     def update(self, instance, validated_data):

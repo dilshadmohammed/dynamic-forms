@@ -52,9 +52,9 @@ class CustomResponse:
         return Response(
             data={
                 "hasError": True,
-                "statusCode": 403,
+                "statusCode": 401,
                 "message": self.message,
                 "response": self.response,
             },
-            status=status.HTTP_403_FORBIDDEN,
+            status=status.HTTP_401_UNAUTHORIZED,
         )

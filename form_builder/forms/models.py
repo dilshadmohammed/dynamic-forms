@@ -24,6 +24,12 @@ class Choice(models.Model):
     id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
     formfield = models.ForeignKey(FormField, related_name='choices', on_delete=models.CASCADE)
     text = models.CharField(max_length=255)
+    
+class PaymentRequest(models.Model):
+    id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
+    formfield = models.ForeignKey(FormField, related_name='payment_details', on_delete=models.CASCADE)
+    upi_id = models.CharField(max_length=100,null=False,blank=True)
+    amount = models.IntegerField(default=0)
 
 class ChoiceAnswer(models.Model):
     id = models.CharField(primary_key=True, max_length=36, default=uuid.uuid4)
